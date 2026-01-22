@@ -6,7 +6,6 @@ class DatabricksServingChatClient:
     """
     Databricks OpenAI クライアントで Serving Endpoint を呼ぶクライアント。
     """
-
     def __init__(self, workspace_client: WorkspaceClient, endpoint_name: str):
         self.w = workspace_client
         self.endpoint_name = endpoint_name
