@@ -11,4 +11,4 @@ Databricks Apps学習用に制作したチャットアプリ
 ### version2
 変更点
 1. Class化しファイル分け
-2. SDK(Databricks OpenAI client)を使用
+2. エンドポイントの呼び出しにSDK(Databricks OpenAI client)を使用
