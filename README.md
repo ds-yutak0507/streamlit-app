@@ -7,6 +7,9 @@ Databricks Apps学習用に制作したチャットアプリ
     - Compute -> Apps: Webアプリの立ち上げ | エンドポイントの紐づけ
 ## ブランチについて
 ### version1
-チャットアプリとしてDatabricksのLLMを使用しAIと会話ができる
+- チャットアプリとしてDatabricksのLLMを使用しAIと会話ができる
 ### version2
-制作中
+変更点
+1. Class化しファイル分け
+2. Databricksの認証ヘッダをキャッシュ（毎回 authenticate() しない）
+3. HTTPエラー・APIエラーをちゃんと拾う
