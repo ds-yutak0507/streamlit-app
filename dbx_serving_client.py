@@ -2,7 +2,6 @@ from typing import List, Dict
 from databricks.sdk import WorkspaceClient
 from openai import OpenAI
 
-
 class DatabricksServingChatClient:
     """
     Databricks OpenAI クライアントで Serving Endpoint を呼ぶクライアント。
