@@ -34,7 +34,7 @@ def _invocations_url(endpoint_name: str) -> str:
 
 def call_serving_chat(messages: list[dict], temperature: float, max_tokens: int) -> str:
     """
-    まず chat 形式（messages）で投げる。
+    Chat 形式（messages）で投げる。
     """
     if not ENDPOINT_NAME:
         return "CHAT_ENDPOINT が未設定です（AppsのResourcesでServing endpointを追加するか、ENDPOINT_FALLBACKに直書きしてください）"
@@ -45,7 +45,6 @@ def call_serving_chat(messages: list[dict], temperature: float, max_tokens: int)
         "Content-Type": "application/json",
     }
 
-    # 1) chat形式（多くの基盤モデル/プロバイダでこの形式）
     payload_chat = {
         "messages": messages,
         "temperature": float(temperature),
