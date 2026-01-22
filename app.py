@@ -12,7 +12,6 @@ st.title("Simple Chat (Databricks Serving)")
 # ----------------------------
 # Config
 # ----------------------------
-# Appsで環境変数として渡すのが正攻法
 ENDPOINT_NAME = 'kikkawa-samplechat-model'
 
 # Databricks client (Apps上では自動認証される想定)
@@ -56,39 +55,13 @@ def call_serving_chat(messages: list[dict], temperature: float, max_tokens: int)
     return extract_text_from_response(r.json())
 
 def extract_text_from_response(obj) -> str:
-    """
-    プロバイダ/endpointにより返却形式が違うので、よくある形を順に拾う。
-    """
-    # 返りが文字列ならそのまま
     if isinstance(obj, str):
         return obj
 
-    # よくある OpenAI 互換: {"choices":[{"message":{"content":"..."}}]}
-    try:
+    if isinstance(obj, dict):
         return obj["choices"][0]["message"]["content"]
-    except Exception:
-        pass
 
-    # {"choices":[{"text":"..."}]}
-    try:
-        return obj["choices"][0]["text"]
-    except Exception:
-        pass
-
-    # {"candidates":[{"content":{"parts":[{"text":"..."}]}}]} (Gemini系でよくある)
-    try:
-        parts = obj["candidates"][0]["content"]["parts"]
-        return "".join(p.get("text", "") for p in parts)
-    except Exception:
-        pass
-
-    # {"output_text":"..."} など
-    for key in ["output_text", "generated_text", "text", "response"]:
-        if isinstance(obj, dict) and key in obj and isinstance(obj[key], str):
-            return obj[key]
-
-    # 最後はdump
-    return json.dumps(obj, ensure_ascii=False, indent=2)
+    raise ValueError(f"Unexpected response format: {obj}")
 
 # ----------------------------
 # Sidebar UI
