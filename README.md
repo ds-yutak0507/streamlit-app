@@ -11,5 +11,4 @@ Databricks Apps学習用に制作したチャットアプリ
 ### version2
 変更点
 1. Class化しファイル分け
-2. Databricksの認証ヘッダをキャッシュ（毎回 authenticate() しない）
-3. HTTPエラー・APIエラーをちゃんと拾う
+2. SDK(Databricks OpenAI client)を使用

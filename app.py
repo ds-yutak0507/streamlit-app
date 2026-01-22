@@ -67,17 +67,11 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                data = client.send_chat(
+                reply = client.send_chat(
                     messages=st.session_state.messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
                 )
-                reply = client.extract_text(data)
-
-                if debug:
-                    st.sidebar.subheader("Last response (raw)")
-                    st.sidebar.json(data)
-
             except Exception as e:
                 reply = f"Error: {e}"
 
