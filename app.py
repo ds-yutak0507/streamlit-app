@@ -32,23 +32,6 @@ def _invocations_url(endpoint_name: str) -> str:
     # Serving Endpoint invocations API
     return f"{host}/serving-endpoints/{endpoint_name}/invocations"
 
-def messages_to_prompt(messages: list[dict]) -> str:
-    """
-    chat非対応（prompt型）endpoint向けのフォールバック用。
-    """
-    lines = []
-    for m in messages:
-        role = m.get("role", "")
-        content = m.get("content", "")
-        if role == "system":
-            lines.append(f"System: {content}")
-        elif role == "user":
-            lines.append(f"User: {content}")
-        elif role == "assistant":
-            lines.append(f"Assistant: {content}")
-    lines.append("Assistant:")
-    return "\n".join(lines)
-
 def call_serving_chat(messages: list[dict], temperature: float, max_tokens: int) -> str:
     """
     まず chat 形式（messages）で投げる。ダメなら prompt 形式にフォールバックする。
@@ -70,22 +53,6 @@ def call_serving_chat(messages: list[dict], temperature: float, max_tokens: int)
     }
 
     r = requests.post(url, headers=headers, json=payload_chat, timeout=120)
-
-    # 2) chat形式が拒否されたら prompt形式で再試行
-    if r.status_code >= 400:
-        text = r.text or ""
-        if "Missing required Chat parameter" in text and "messages" in text:
-            payload_prompt = {
-                "prompt": messages_to_prompt(messages),
-                "temperature": float(temperature),
-                "max_tokens": int(max_tokens),
-            }
-            r2 = requests.post(url, headers=headers, json=payload_prompt, timeout=120)
-            r2.raise_for_status()
-            return extract_text_from_response(r2.json())
-
-        # それ以外はそのままエラーを見せる（ログにも出る）
-        r.raise_for_status()
 
     return extract_text_from_response(r.json())
 
