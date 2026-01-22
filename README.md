@@ -5,3 +5,8 @@ Databricks Apps学習用に制作したチャットアプリ
 - Databricks (Back)
     - Serving: LLMのエンドポイントを設定
     - Compute -> Apps: Webアプリの立ち上げ | エンドポイントの紐づけ
+## ブランチについて
+### version1
+チャットアプリとしてDatabricksのLLMを使用しAIと会話ができる
+### version2
+制作中
