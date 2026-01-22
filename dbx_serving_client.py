@@ -1,5 +1,6 @@
 from typing import List, Dict
 from databricks.sdk import WorkspaceClient
+from openai import OpenAI
 
 
 class DatabricksServingChatClient:
@@ -9,8 +10,18 @@ class DatabricksServingChatClient:
     def __init__(self, workspace_client: WorkspaceClient, endpoint_name: str):
         self.w = workspace_client
         self.endpoint_name = endpoint_name
-        # Databricks OpenAI client
-        self.client = self.w.serving_endpoints.get_open_ai_client()
+
+        # Databricks SDKでトークン取得
+        headers = self.w.config.authenticate()
+        if not headers or "Authorization" not in headers:
+            raise RuntimeError("Authorization header not available.")
+
+        # "Bearer xxx" → "xxx" にする
+        api_key = headers["Authorization"].replace("Bearer ", "").strip()
+
+        base_url = f"{self.w.config.host.rstrip('/')}/serving-endpoints"
+
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
 
     def send_chat(
         self,
