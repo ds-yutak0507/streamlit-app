@@ -7,6 +7,8 @@ Databricks Apps学習用に制作したチャットアプリ
     - Compute -> Apps: Webアプリの立ち上げ | エンドポイントの紐づけ
 ## ブランチについて
 ### version1
-チャットアプリとしてDatabricksのLLMを使用しAIと会話ができる
+- チャットアプリとしてDatabricksのLLMを使用しAIと会話ができる
 ### version2
-制作中
+変更点
+1. Class化しファイル分け
+2. エンドポイントの呼び出しにSDK(Databricks OpenAI client)を使用

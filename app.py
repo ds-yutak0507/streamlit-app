@@ -1,6 +1,7 @@
-import requests
 import streamlit as st
 from databricks.sdk import WorkspaceClient
+
+from dbx_serving_client import DatabricksServingChatClient
 
 # ----------------------------
 # Page
@@ -11,56 +12,13 @@ st.title("Simple Chat (Databricks Serving)")
 # ----------------------------
 # Config
 # ----------------------------
-ENDPOINT_NAME = 'kikkawa-samplechat-model'
+ENDPOINT_NAME = "kikkawa-samplechat-model"
 
 # Databricks client (Apps上では自動認証される想定)
 w = WorkspaceClient()
 
-def _get_auth_headers() -> dict:
-    headers = w.config.authenticate()  # 例: {"Authorization": "Bearer ..."}
-    if not headers or "Authorization" not in headers:
-        raise RuntimeError(
-            "Authentication headers are not available. "
-            "Check App authentication / permissions."
-        )
-    return headers
-
-def _invocations_url(endpoint_name: str) -> str:
-    host = w.config.host.rstrip("/")
-    # Serving Endpoint invocations API
-    return f"{host}/serving-endpoints/{endpoint_name}/invocations"
-
-def call_serving_chat(messages: list[dict], temperature: float, max_tokens: int) -> str:
-    """
-    Chat 形式（messages）で投げる。
-    """
-    if not ENDPOINT_NAME:
-        return "CHAT_ENDPOINT が未設定です（AppsのResourcesでServing endpointを追加するか、ENDPOINT_FALLBACKに直書きしてください）"
-
-    url = _invocations_url(ENDPOINT_NAME)
-    headers = {
-        **_get_auth_headers(),
-        "Content-Type": "application/json",
-    }
-
-    payload_chat = {
-        "messages": messages,
-        "temperature": float(temperature),
-        "max_tokens": int(max_tokens),
-    }
-
-    r = requests.post(url, headers=headers, json=payload_chat, timeout=120)
-
-    return extract_text_from_response(r.json())
-
-def extract_text_from_response(obj) -> str:
-    if isinstance(obj, str):
-        return obj
-
-    if isinstance(obj, dict):
-        return obj["choices"][0]["message"]["content"]
-
-    raise ValueError(f"Unexpected response format: {obj}")
+# Chat Client
+client = DatabricksServingChatClient(w, ENDPOINT_NAME)
 
 # ----------------------------
 # Sidebar UI
@@ -68,6 +26,7 @@ def extract_text_from_response(obj) -> str:
 with st.sidebar:
     st.header("Settings")
     st.write("CHAT_ENDPOINT =", ENDPOINT_NAME or "(not set)")
+
     system_prompt = st.text_area("System prompt", "You are a helpful assistant.", height=100)
     temperature = st.slider("temperature", 0.0, 1.0, 0.2, 0.05)
     max_tokens = st.slider("max_tokens", 64, 2048, 512, 64)
@@ -108,13 +67,14 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                reply = call_serving_chat(
+                reply = client.send_chat(
                     messages=st.session_state.messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
                 )
             except Exception as e:
                 reply = f"Error: {e}"
+
         st.markdown(reply)
 
     st.session_state.messages.append({"role": "assistant", "content": reply})
