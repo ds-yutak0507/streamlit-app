@@ -1,28 +1,15 @@
 from typing import List, Dict, Optional
 from databricks.sdk import WorkspaceClient
-from openai import OpenAI
 import json
 
 class DatabricksServingChatClient:
     """
-    Databricks OpenAI クライアントで Serving Endpoint を呼ぶクライアント。
+    Databricks SDK を直接使用して Serving Endpoint を呼ぶクライアント。
     """
     def __init__(self, workspace_client: WorkspaceClient, endpoint_name: str, unity_catalog_client: Optional['UnityCatalogClient'] = None):
         self.w = workspace_client
         self.endpoint_name = endpoint_name
         self.uc_client = unity_catalog_client
-
-        # Databricks SDKでトークン取得
-        headers = self.w.config.authenticate()
-        if not headers or "Authorization" not in headers:
-            raise RuntimeError("Authorization header not available.")
-
-        # "Bearer xxx" → "xxx" にする
-        api_key = headers["Authorization"].replace("Bearer ", "").strip()
-
-        base_url = f"{self.w.config.host.rstrip('/')}/serving-endpoints"
-
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
 
     def send_chat(
         self,
@@ -30,20 +17,43 @@ class DatabricksServingChatClient:
         temperature: float,
         max_tokens: int,
     ) -> str:
-        resp = self.client.chat.completions.create(
-            model=self.endpoint_name,
-            messages=messages,
-            temperature=float(temperature),
-            max_tokens=int(max_tokens),
-        )
-        return self._extract_text(resp)
+        """Databricks SDKを使用してチャット送信"""
+        # Databricks SDK の query メソッドを使用
+        query_input = {
+            "messages": messages,
+            "temperature": float(temperature),
+            "max_tokens": int(max_tokens),
+        }
 
-    def _extract_text(self, resp) -> str:
-        """OpenAI互換レスポンスからテキストを取り出す"""
+        response = self.w.serving_endpoints.query(
+            name=self.endpoint_name,
+            inputs=[query_input]
+        )
+
+        return self._extract_text(response)
+
+    def _extract_text(self, response) -> str:
+        """Databricks SDK レスポンスからテキストを取り出す"""
         try:
-            return resp.choices[0].message.content
+            # Databricks SDK のレスポンス形式に対応
+            if hasattr(response, 'predictions') and response.predictions:
+                # predictions形式
+                prediction = response.predictions[0]
+                if isinstance(prediction, dict):
+                    # OpenAI互換レスポンス形式
+                    if 'choices' in prediction:
+                        return prediction['choices'][0]['message']['content']
+                    # 直接テキスト形式
+                    elif 'content' in prediction:
+                        return prediction['content']
+                    elif 'response' in prediction:
+                        return prediction['response']
+                return str(prediction)
+
+            # その他の形式
+            return str(response)
         except Exception as e:
-            raise ValueError(f"Unexpected response format: {resp}") from e
+            raise ValueError(f"Unexpected response format: {response}") from e
 
     def send_chat_with_tools(
         self,
@@ -52,7 +62,7 @@ class DatabricksServingChatClient:
         max_tokens: int,
         max_iterations: int = 5
     ) -> str:
-        """Function Calling対応のチャット送信
+        """Function Calling対応のチャット送信（Databricks SDK使用）
 
         フロー:
         1. ツール定義付きでLLMを呼び出し
@@ -80,42 +90,35 @@ class DatabricksServingChatClient:
 
         for iteration in range(max_iterations):
             # ツール定義付きでLLM呼び出し
-            resp = self.client.chat.completions.create(
-                model=self.endpoint_name,
-                messages=working_messages,
-                temperature=float(temperature),
-                max_tokens=int(max_tokens),
-                tools=tool_definitions,
-                tool_choice="auto"
+            query_input = {
+                "messages": working_messages,
+                "temperature": float(temperature),
+                "max_tokens": int(max_tokens),
+                "tools": tool_definitions,
+                "tool_choice": "auto"
+            }
+
+            response = self.w.serving_endpoints.query(
+                name=self.endpoint_name,
+                inputs=[query_input]
             )
 
-            message = resp.choices[0].message
+            # レスポンスからメッセージを抽出
+            message = self._extract_message(response)
 
             # ツール呼び出しがある場合
-            if message.tool_calls:
-                # Assistantのメッセージを追加（ツール呼び出し情報含む）
-                assistant_message = {
+            if message.get("tool_calls"):
+                # Assistantのメッセージを追加
+                working_messages.append({
                     "role": "assistant",
-                    "content": message.content,
-                }
-                # tool_callsを辞書形式で追加
-                assistant_message["tool_calls"] = [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments
-                        }
-                    }
-                    for tc in message.tool_calls
-                ]
-                working_messages.append(assistant_message)
+                    "content": message.get("content"),
+                    "tool_calls": message["tool_calls"]
+                })
 
                 # 各ツール呼び出しを実行
-                for tool_call in message.tool_calls:
-                    function_name = tool_call.function.name
-                    function_args = json.loads(tool_call.function.arguments)
+                for tool_call in message["tool_calls"]:
+                    function_name = tool_call["function"]["name"]
+                    function_args = json.loads(tool_call["function"]["arguments"])
 
                     # ツール実行
                     try:
@@ -129,12 +132,28 @@ class DatabricksServingChatClient:
                     # ツール結果をメッセージに追加
                     working_messages.append({
                         "role": "tool",
-                        "tool_call_id": tool_call.id,
+                        "tool_call_id": tool_call["id"],
                         "content": tool_result
                     })
             else:
                 # 最終的なテキスト回答が返された
-                return message.content or ""
+                return message.get("content", "")
 
         # 最大反復回数に達した
         return "申し訳ありませんが、処理が制限回数に達しました。"
+
+    def _extract_message(self, response) -> Dict:
+        """レスポンスからメッセージオブジェクトを抽出"""
+        try:
+            if hasattr(response, 'predictions') and response.predictions:
+                prediction = response.predictions[0]
+                if isinstance(prediction, dict):
+                    # OpenAI互換レスポンス形式
+                    if 'choices' in prediction:
+                        return prediction['choices'][0]['message']
+                    # 直接メッセージ形式
+                    return prediction
+
+            return {"content": str(response)}
+        except Exception as e:
+            raise ValueError(f"Failed to extract message: {e}")
