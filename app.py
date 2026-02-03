@@ -70,26 +70,27 @@ with st.sidebar:
     st.header("Settings")
     st.write("CHAT_ENDPOINT =", ENDPOINT_NAME or "(not set)")
 
-    # テーブル情報を取得
-    table_info = get_table_info()
+    default_system_prompt = """You are a helpful assistant with access to Unity Catalog tools.
 
-    default_system_prompt = f"""You are a helpful assistant with knowledge of Unity Catalog tables.
+When users ask about table information:
+- Use the list_tables function to get available tables in a schema
+- Use the get_table_details function to get detailed information about specific tables
 
-When users ask about table information, use the following schema information:
-
-{table_info}
+Default catalog: yuta_kikkawa
+Default schema: demo_sales
 
 Always provide clear, well-formatted responses about table structure and metadata."""
 
-    system_prompt = st.text_area("System prompt", default_system_prompt, height=300)
+    system_prompt = st.text_area("System prompt", default_system_prompt, height=200)
     temperature = st.slider("temperature", 0.0, 1.0, 0.2, 0.05)
     max_tokens = st.slider("max_tokens", 64, 2048, 512, 64)
 
     debug = st.checkbox("Debug", value=False)
 
-    # テーブル情報を表示
-    if st.checkbox("Show table info", value=False):
-        st.subheader("Fetched Table Info")
+    # デバッグ: テーブル情報を表示（Function Calling を使わずに直接取得）
+    if st.checkbox("Show table info (debug)", value=False):
+        st.subheader("Direct Fetch (for comparison)")
+        table_info = get_table_info()
         st.text(table_info)
 
     if st.button("Clear chat"):
