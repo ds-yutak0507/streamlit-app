@@ -22,7 +22,46 @@ w = WorkspaceClient()
 uc_client = UnityCatalogClient(w)
 
 # Chat Client
-client = DatabricksServingChatClient(w, ENDPOINT_NAME, unity_catalog_client=uc_client)
+client = DatabricksServingChatClient(w, ENDPOINT_NAME)
+
+# テーブル情報を取得してキャッシュ
+@st.cache_data(ttl=3600)  # 1時間キャッシュ
+def get_table_info():
+    """Unity Catalogからテーブル情報を取得してフォーマット"""
+    try:
+        # テーブル一覧を取得
+        tables = uc_client.list_tables("yuta_kikkawa", "demo_sales")
+
+        if not tables:
+            return "スキーマ yuta_kikkawa.demo_sales にテーブルが見つかりませんでした。"
+
+        # テーブル情報を整形
+        table_info = "## Available Tables in yuta_kikkawa.demo_sales\n\n"
+
+        for table in tables:
+            # 各テーブルの詳細を取得
+            try:
+                details = uc_client.get_table_details("yuta_kikkawa", "demo_sales", table["name"])
+
+                table_info += f"### {table['name']}\n"
+                table_info += f"Type: {details['table_type']}\n"
+                if details['comment']:
+                    table_info += f"Description: {details['comment']}\n"
+                table_info += "\nColumns:\n"
+
+                for col in details['columns']:
+                    table_info += f"- {col['name']} ({col['type']})"
+                    if col['comment']:
+                        table_info += f": {col['comment']}"
+                    table_info += "\n"
+
+                table_info += "\n"
+            except Exception as e:
+                table_info += f"- {table['name']}: 詳細情報の取得に失敗\n\n"
+
+        return table_info
+    except Exception as e:
+        return f"テーブル情報の取得中にエラーが発生しました: {str(e)}"
 
 # ----------------------------
 # Sidebar UI
@@ -31,17 +70,18 @@ with st.sidebar:
     st.header("Settings")
     st.write("CHAT_ENDPOINT =", ENDPOINT_NAME or "(not set)")
 
-    default_system_prompt = """You are a helpful assistant with access to Unity Catalog tables.
+    # テーブル情報を取得
+    table_info = get_table_info()
 
-When users ask about table information, you can:
-- List tables in the yuta_kikkawa.demo_sales schema
-- Get detailed information about specific tables including column names, data types, and comments
+    default_system_prompt = f"""You are a helpful assistant with knowledge of Unity Catalog tables.
 
-Default schema: yuta_kikkawa.demo_sales
+When users ask about table information, use the following schema information:
+
+{table_info}
 
 Always provide clear, well-formatted responses about table structure and metadata."""
 
-    system_prompt = st.text_area("System prompt", default_system_prompt, height=150)
+    system_prompt = st.text_area("System prompt", default_system_prompt, height=300)
     temperature = st.slider("temperature", 0.0, 1.0, 0.2, 0.05)
     max_tokens = st.slider("max_tokens", 64, 2048, 512, 64)
 
@@ -81,7 +121,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                reply = client.send_chat_with_tools(
+                reply = client.send_chat(
                     messages=st.session_state.messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
