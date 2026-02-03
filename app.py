@@ -70,28 +70,22 @@ with st.sidebar:
     st.header("Settings")
     st.write("CHAT_ENDPOINT =", ENDPOINT_NAME or "(not set)")
 
-    default_system_prompt = """You are a helpful assistant with access to Unity Catalog tools.
+    # テーブル情報を取得
+    table_info = get_table_info()
 
-When users ask about table information:
-- Use the list_tables function to get available tables in a schema
-- Use the get_table_details function to get detailed information about specific tables
+    default_system_prompt = f"""You are a helpful assistant with knowledge of Unity Catalog tables.
 
-Default catalog: yuta_kikkawa
-Default schema: demo_sales
+When users ask about table information, use the following schema information:
+
+{table_info}
 
 Always provide clear, well-formatted responses about table structure and metadata."""
 
-    system_prompt = st.text_area("System prompt", default_system_prompt, height=200)
+    system_prompt = st.text_area("System prompt", default_system_prompt, height=300)
     temperature = st.slider("temperature", 0.0, 1.0, 0.2, 0.05)
     max_tokens = st.slider("max_tokens", 64, 2048, 512, 64)
 
     debug = st.checkbox("Debug", value=False)
-
-    # デバッグ: テーブル情報を表示（Function Calling を使わずに直接取得）
-    if st.checkbox("Show table info (debug)", value=False):
-        st.subheader("Direct Fetch (for comparison)")
-        table_info = get_table_info()
-        st.text(table_info)
 
     if st.button("Clear chat"):
         st.session_state.messages = [{"role": "system", "content": system_prompt}]
@@ -127,8 +121,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                # Function Calling を試す
-                reply = client.send_chat_with_tools(
+                reply = client.send_chat(
                     messages=st.session_state.messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
