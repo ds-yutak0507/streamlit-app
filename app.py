@@ -2,6 +2,7 @@ import streamlit as st
 from databricks.sdk import WorkspaceClient
 
 from dbx_serving_client import DatabricksServingChatClient
+from unity_catalog_tools import UnityCatalogClient
 
 # ----------------------------
 # Page
@@ -17,8 +18,11 @@ ENDPOINT_NAME = "kikkawa-samplechat-model"
 # Databricks client (Apps上では自動認証される想定)
 w = WorkspaceClient()
 
+# Unity Catalog client
+uc_client = UnityCatalogClient(w)
+
 # Chat Client
-client = DatabricksServingChatClient(w, ENDPOINT_NAME)
+client = DatabricksServingChatClient(w, ENDPOINT_NAME, unity_catalog_client=uc_client)
 
 # ----------------------------
 # Sidebar UI
@@ -27,7 +31,17 @@ with st.sidebar:
     st.header("Settings")
     st.write("CHAT_ENDPOINT =", ENDPOINT_NAME or "(not set)")
 
-    system_prompt = st.text_area("System prompt", "You are a helpful assistant.", height=100)
+    default_system_prompt = """You are a helpful assistant with access to Unity Catalog tables.
+
+When users ask about table information, you can:
+- List tables in the yuta_kikkawa.demo_sales schema
+- Get detailed information about specific tables including column names, data types, and comments
+
+Default schema: yuta_kikkawa.demo_sales
+
+Always provide clear, well-formatted responses about table structure and metadata."""
+
+    system_prompt = st.text_area("System prompt", default_system_prompt, height=150)
     temperature = st.slider("temperature", 0.0, 1.0, 0.2, 0.05)
     max_tokens = st.slider("max_tokens", 64, 2048, 512, 64)
 
@@ -67,7 +81,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                reply = client.send_chat(
+                reply = client.send_chat_with_tools(
                     messages=st.session_state.messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
