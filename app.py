@@ -73,11 +73,14 @@ with st.sidebar:
     # テーブル情報を取得
     table_info = get_table_info()
 
-    default_system_prompt = f"""You are a helpful assistant with knowledge of Unity Catalog tables.
+    default_system_prompt = """You are a helpful assistant with access to Unity Catalog tools.
 
-When users ask about table information, use the following schema information:
+When users ask about table information:
+- Use the list_tables function to get available tables in a schema
+- Use the get_table_details function to get detailed information about specific tables
 
-{table_info}
+Default catalog: yuta_kikkawa
+Default schema: demo_sales
 
 Always provide clear, well-formatted responses about table structure and metadata."""
 
@@ -121,7 +124,8 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                reply = client.send_chat(
+                # Function Calling（1回のみ）を使用
+                reply = client.send_chat_with_tools(
                     messages=st.session_state.messages,
                     temperature=temperature,
                     max_tokens=max_tokens,

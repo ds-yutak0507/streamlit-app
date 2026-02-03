@@ -52,22 +52,21 @@ class DatabricksServingChatClient:
         max_tokens: int,
         max_iterations: int = 5
     ) -> str:
-        """Function Calling対応のチャット送信
+        """Function Calling対応のチャット送信（1回のみ）
 
         フロー:
         1. ツール定義付きでLLMを呼び出し
         2. LLMがツールを呼び出すか確認
-        3. ツールを実行して結果をメッセージに追加
-        4. LLMに再度送信（最終回答が返るまで繰り返し）
+        3. ツールを実行して結果を直接返す（会話を継続しない）
 
         Args:
             messages: メッセージ履歴
             temperature: 温度パラメータ
             max_tokens: 最大トークン数
-            max_iterations: 最大反復回数（デフォルト5回）
+            max_iterations: 使用されない（互換性のため残す）
 
         Returns:
-            LLMの最終的な回答テキスト
+            ツールの実行結果、またはLLMの回答
         """
         # UC clientが設定されていない場合は通常のチャットにフォールバック
         if not self.uc_client:
@@ -76,63 +75,39 @@ class DatabricksServingChatClient:
         from unity_catalog_tools import get_function_definitions
 
         tool_definitions = get_function_definitions()
-        working_messages = messages.copy()
 
-        for iteration in range(max_iterations):
-            # ツール定義付きでLLM呼び出し
-            response = self.client.chat.completions.create(
-                model=self.endpoint_name,
-                messages=working_messages,
-                temperature=float(temperature),
-                max_tokens=int(max_tokens),
-                tools=tool_definitions,
-                tool_choice="auto"
-            )
+        # ツール定義付きでLLM呼び出し（1回のみ）
+        response = self.client.chat.completions.create(
+            model=self.endpoint_name,
+            messages=messages,
+            temperature=float(temperature),
+            max_tokens=int(max_tokens),
+            tools=tool_definitions,
+            tool_choice="auto"
+        )
 
-            message = response.choices[0].message
+        message = response.choices[0].message
 
-            # ツール呼び出しがある場合
-            if message.tool_calls:
-                # Assistantのメッセージを追加
-                working_messages.append({
-                    "role": "assistant",
-                    "content": message.content,
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": tc.type,
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments
-                            }
-                        }
-                        for tc in message.tool_calls
-                    ]
-                })
+        # ツール呼び出しがある場合
+        if message.tool_calls:
+            # 各ツール呼び出しを実行して結果を収集
+            results = []
+            for tool_call in message.tool_calls:
+                function_name = tool_call.function.name
+                function_args = json.loads(tool_call.function.arguments)
 
-                # 各ツール呼び出しを実行
-                for tool_call in message.tool_calls:
-                    function_name = tool_call.function.name
-                    function_args = json.loads(tool_call.function.arguments)
+                # ツール実行
+                try:
+                    tool_result = self.uc_client.execute_tool(
+                        function_name,
+                        function_args
+                    )
+                    results.append(tool_result)
+                except Exception as e:
+                    results.append(f"Error executing tool: {str(e)}")
 
-                    # ツール実行
-                    try:
-                        tool_result = self.uc_client.execute_tool(
-                            function_name,
-                            function_args
-                        )
-                    except Exception as e:
-                        tool_result = f"Error executing tool: {str(e)}"
-
-                    # ツール結果をメッセージに追加
-                    working_messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": tool_result
-                    })
-            else:
-                # 最終的なテキスト回答が返された
-                return message.content or ""
-
-        # 最大反復回数に達した
-        return "申し訳ありませんが、処理が制限回数に達しました。"
+            # ツールの結果を直接返す
+            return "\n\n".join(results)
+        else:
+            # ツール呼び出しがない場合は通常の回答を返す
+            return message.content or ""
