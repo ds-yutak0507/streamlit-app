@@ -21,8 +21,8 @@ w = WorkspaceClient()
 # Unity Catalog client
 uc_client = UnityCatalogClient(w)
 
-# Chat Client
-client = DatabricksServingChatClient(w, ENDPOINT_NAME)
+# Chat Client (Unity Catalog クライアントを渡す)
+client = DatabricksServingChatClient(w, ENDPOINT_NAME, unity_catalog_client=uc_client)
 
 # テーブル情報を取得してキャッシュ
 @st.cache_data(ttl=3600)  # 1時間キャッシュ
@@ -126,7 +126,8 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                reply = client.send_chat(
+                # Function Calling を試す
+                reply = client.send_chat_with_tools(
                     messages=st.session_state.messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
