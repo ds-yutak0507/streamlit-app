@@ -12,3 +12,8 @@ Databricks Apps学習用に制作したチャットアプリ
 変更点
 1. Class化しファイル分け
 2. エンドポイントの呼び出しにSDK(Databricks OpenAI client)を使用
+### version3
+変更点
+1. 以下のUnity Catalog情報取得に特化
+    - Catalog;: yuta_kikkawa
+    - Schema: demo_sales
