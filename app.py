@@ -87,6 +87,11 @@ Always provide clear, well-formatted responses about table structure and metadat
 
     debug = st.checkbox("Debug", value=False)
 
+    # テーブル情報を表示
+    if st.checkbox("Show table info", value=False):
+        st.subheader("Fetched Table Info")
+        st.text(table_info)
+
     if st.button("Clear chat"):
         st.session_state.messages = [{"role": "system", "content": system_prompt}]
         st.rerun()
