@@ -1,7 +1,6 @@
 from typing import List, Dict
 from databricks.sdk import WorkspaceClient
 
-
 class UnityCatalogClient:
     """Unity Catalogのテーブル情報を取得するクライアント"""
 
