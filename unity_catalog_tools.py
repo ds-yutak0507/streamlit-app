@@ -1,6 +1,5 @@
-from typing import List, Dict, Optional
+from typing import List, Dict
 from databricks.sdk import WorkspaceClient
-import json
 
 
 class UnityCatalogClient:
