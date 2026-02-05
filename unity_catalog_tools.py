@@ -105,18 +105,15 @@ class UnityCatalogClient:
                 wait_timeout="30s"
             )
 
-            # 結果を待機
-            result = response.result
-
             # カラム名を取得
             columns = []
-            if result.manifest and result.manifest.schema and result.manifest.schema.columns:
-                columns = [col.name for col in result.manifest.schema.columns]
+            if response.manifest and response.manifest.schema and response.manifest.schema.columns:
+                columns = [col.name for col in response.manifest.schema.columns]
 
             # データを取得
             rows = []
-            if result.result and result.result.data_array:
-                rows = result.result.data_array
+            if response.result and response.result.data_array:
+                rows = response.result.data_array
 
             return {
                 "columns": columns,
