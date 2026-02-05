@@ -106,7 +106,7 @@ class UnityCatalogClient:
             )
 
             # 結果を待機
-            result = response.result()
+            result = response.result
 
             # カラム名を取得
             columns = []
