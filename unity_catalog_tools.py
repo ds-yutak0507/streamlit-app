@@ -126,6 +126,8 @@ class UnityCatalogClient:
     def get_related_tables(self, catalog: str, schema: str, table: str) -> Dict:
         """テーブルに関連する他のテーブルを取得
 
+        カラム名のパターン（_idで終わるカラム）から関連テーブルを推測します。
+
         Args:
             catalog: カタログ名
             schema: スキーマ名
@@ -155,91 +157,77 @@ class UnityCatalogClient:
             }
         """
         try:
-            # このテーブルを参照している外部キーを取得
-            referenced_by_query = f"""
-            SELECT
-                tc.table_name as source_table,
-                tc.constraint_name,
-                fk_col.column_name as source_column,
-                pk_col.column_name as target_column
-            FROM information_schema.referential_constraints rc
-            JOIN information_schema.table_constraints tc
-                ON rc.constraint_name = tc.constraint_name
-                AND rc.constraint_schema = tc.constraint_schema
-            JOIN information_schema.table_constraints pk_tc
-                ON rc.unique_constraint_name = pk_tc.constraint_name
-                AND rc.unique_constraint_schema = pk_tc.constraint_schema
-            JOIN information_schema.key_column_usage fk_col
-                ON tc.constraint_name = fk_col.constraint_name
-                AND tc.constraint_schema = fk_col.constraint_schema
-            JOIN information_schema.key_column_usage pk_col
-                ON pk_tc.constraint_name = pk_col.constraint_name
-                AND pk_tc.constraint_schema = pk_col.constraint_schema
-                AND fk_col.ordinal_position = pk_col.ordinal_position
-            WHERE pk_tc.table_name = '{table}'
-                AND pk_tc.table_schema = '{schema}'
-                AND pk_tc.table_catalog = '{catalog}'
-            ORDER BY tc.table_name, tc.constraint_name, fk_col.ordinal_position
-            """
-
-            referenced_by_result = self._execute_sql(referenced_by_query, catalog, schema)
-
-            # このテーブルが参照している外部キーを取得
+            # このテーブルが参照しているテーブル（このテーブルの_idカラムが他のテーブルにも存在する）
+            # 外部キーが明示的に定義されている場合、そのようにSQLを修正した方がいい
             references_query = f"""
-            SELECT
-                tc.constraint_name,
-                fk_col.column_name as source_column,
-                pk_tc.table_name as target_table,
-                pk_col.column_name as target_column
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.referential_constraints rc
-                ON tc.constraint_name = rc.constraint_name
-                AND tc.constraint_schema = rc.constraint_schema
-            JOIN information_schema.table_constraints pk_tc
-                ON rc.unique_constraint_name = pk_tc.constraint_name
-                AND rc.unique_constraint_schema = pk_tc.constraint_schema
-            JOIN information_schema.key_column_usage fk_col
-                ON tc.constraint_name = fk_col.constraint_name
-                AND tc.constraint_schema = fk_col.constraint_schema
-            JOIN information_schema.key_column_usage pk_col
-                ON pk_tc.constraint_name = pk_col.constraint_name
-                AND pk_tc.constraint_schema = pk_col.constraint_schema
-                AND fk_col.ordinal_position = pk_col.ordinal_position
-            WHERE tc.table_name = '{table}'
-                AND tc.table_schema = '{schema}'
-                AND tc.table_catalog = '{catalog}'
-                AND tc.constraint_type = 'FOREIGN KEY'
-            ORDER BY tc.constraint_name, fk_col.ordinal_position
+            SELECT DISTINCT
+                c1.column_name as source_column,
+                c2.table_name as target_table,
+                c2.column_name as target_column
+            FROM information_schema.columns c1
+            JOIN information_schema.columns c2
+                ON c1.column_name = c2.column_name
+                AND c1.table_name != c2.table_name
+                AND c1.table_schema = c2.table_schema
+                AND c1.table_catalog = c2.table_catalog
+            WHERE c1.table_catalog = '{catalog}'
+                AND c1.table_schema = '{schema}'
+                AND c1.table_name = '{table}'
+                AND c1.column_name LIKE '%_id'
+            ORDER BY c2.table_name, c1.column_name
             """
 
             references_result = self._execute_sql(references_query, catalog, schema)
 
-            # referenced_by をグループ化
-            referenced_by = {}
-            for row in referenced_by_result["rows"]:
-                source_table, constraint_name, source_column, target_column = row
-                if constraint_name not in referenced_by:
-                    referenced_by[constraint_name] = {
-                        "table": source_table,
-                        "constraint": constraint_name,
+            # このテーブルを参照しているテーブル（他のテーブルの_idカラムがこのテーブルにも存在する）
+            # 外部キーが明示的に定義されている場合、そのようにSQLを修正した方がいい
+            referenced_by_query = f"""
+            SELECT DISTINCT
+                c1.table_name as source_table,
+                c1.column_name as source_column,
+                c2.column_name as target_column
+            FROM information_schema.columns c1
+            JOIN information_schema.columns c2
+                ON c1.column_name = c2.column_name
+                AND c1.table_name != c2.table_name
+                AND c1.table_schema = c2.table_schema
+                AND c1.table_catalog = c2.table_catalog
+            WHERE c2.table_catalog = '{catalog}'
+                AND c2.table_schema = '{schema}'
+                AND c2.table_name = '{table}'
+                AND c1.column_name LIKE '%_id'
+                AND c1.table_name != '{table}'
+            ORDER BY c1.table_name, c1.column_name
+            """
+
+            referenced_by_result = self._execute_sql(referenced_by_query, catalog, schema)
+
+            # references をグループ化（テーブルごと）
+            references = {}
+            for row in references_result["rows"]:
+                source_column, target_table, target_column = row
+                if target_table not in references:
+                    references[target_table] = {
+                        "table": target_table,
+                        "constraint": f"{table}_{target_table}_inferred",
                         "columns": []
                     }
-                referenced_by[constraint_name]["columns"].append({
+                references[target_table]["columns"].append({
                     "source": source_column,
                     "target": target_column
                 })
 
-            # references をグループ化
-            references = {}
-            for row in references_result["rows"]:
-                constraint_name, source_column, target_table, target_column = row
-                if constraint_name not in references:
-                    references[constraint_name] = {
-                        "table": target_table,
-                        "constraint": constraint_name,
+            # referenced_by をグループ化（テーブルごと）
+            referenced_by = {}
+            for row in referenced_by_result["rows"]:
+                source_table, source_column, target_column = row
+                if source_table not in referenced_by:
+                    referenced_by[source_table] = {
+                        "table": source_table,
+                        "constraint": f"{source_table}_{table}_inferred",
                         "columns": []
                     }
-                references[constraint_name]["columns"].append({
+                referenced_by[source_table]["columns"].append({
                     "source": source_column,
                     "target": target_column
                 })
