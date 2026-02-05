@@ -321,7 +321,7 @@ class UnityCatalogClient:
                 if related["referenced_by"]:
                     result += "【このテーブルを参照しているテーブル】\n"
                     for ref in related["referenced_by"]:
-                        result += f"- {ref['table']} (制約: {ref['constraint']})\n"
+                        result += f"- {ref['table']}\n"
                         for col in ref["columns"]:
                             result += f"  {ref['table']}.{col['source']} → {table}.{col['target']}\n"
                     result += "\n"
@@ -332,7 +332,7 @@ class UnityCatalogClient:
                 if related["references"]:
                     result += "【このテーブルが参照しているテーブル】\n"
                     for ref in related["references"]:
-                        result += f"- {ref['table']} (制約: {ref['constraint']})\n"
+                        result += f"- {ref['table']})\n"
                         for col in ref["columns"]:
                             result += f"  {table}.{col['source']} → {ref['table']}.{col['target']}\n"
                     result += "\n"
