@@ -17,3 +17,7 @@ Databricks Apps学習用に制作したチャットアプリ
 1. 以下のUnity Catalog情報取得に特化
     - Catalog;: yuta_kikkawa
     - Schema: demo_sales
+2. 機能を以下に絞る
+    - テーブルの一覧を取得
+    - テーブルの詳細を取得
+    - テーブルの関連性を取得
