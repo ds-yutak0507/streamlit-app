@@ -174,7 +174,7 @@ class UnityCatalogClient:
                 AND c1.table_schema = '{schema}'
                 AND c1.table_name = '{table}'
                 AND c1.column_name LIKE '%_id'
-            ORDER BY c2.table_name, c1.column_name
+            ORDER BY target_table, source_column
             """
 
             references_result = self._execute_sql(references_query, catalog, schema)
@@ -197,7 +197,7 @@ class UnityCatalogClient:
                 AND c2.table_name = '{table}'
                 AND c1.column_name LIKE '%_id'
                 AND c1.table_name != '{table}'
-            ORDER BY c1.table_name, c1.column_name
+            ORDER BY source_table, source_column
             """
 
             referenced_by_result = self._execute_sql(referenced_by_query, catalog, schema)
