@@ -158,6 +158,7 @@ class UnityCatalogClient:
         """
         try:
             # このテーブルが参照しているテーブル（このテーブルの_idカラムが他のテーブルにも存在する）
+            # カラム名からテーブル名を推測（例: customer_id → dim_customer）
             # 外部キーが明示的に定義されている場合、そのようにSQLを修正した方がいい
             references_query = f"""
             SELECT DISTINCT
@@ -174,12 +175,14 @@ class UnityCatalogClient:
                 AND c1.table_schema = '{schema}'
                 AND c1.table_name = '{table}'
                 AND c1.column_name LIKE '%_id'
+                AND LOWER(c2.table_name) LIKE CONCAT('%', REPLACE(LOWER(c1.column_name), '_id', ''), '%')
             ORDER BY target_table, source_column
             """
 
             references_result = self._execute_sql(references_query, catalog, schema)
 
             # このテーブルを参照しているテーブル（他のテーブルの_idカラムがこのテーブルにも存在する）
+            # カラム名がこのテーブル名に対応する場合のみ（例: fct_order ← order_id）
             # 外部キーが明示的に定義されている場合、そのようにSQLを修正した方がいい
             referenced_by_query = f"""
             SELECT DISTINCT
@@ -197,6 +200,7 @@ class UnityCatalogClient:
                 AND c2.table_name = '{table}'
                 AND c1.column_name LIKE '%_id'
                 AND c1.table_name != '{table}'
+                AND LOWER('{table}') LIKE CONCAT('%', REPLACE(LOWER(c1.column_name), '_id', ''), '%')
             ORDER BY source_table, source_column
             """
 
