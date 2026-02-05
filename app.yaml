@@ -2,3 +2,5 @@ command: ["streamlit", "run", "app.py"]
 env:
   - name: "STREAMLIT_GATHER_USAGE_STATS"
     value: "false"
+  - name: "WAREHOUSE_ID"
+    value: "your_warehouse_id_here"  # SQL Warehouse ID を設定してください

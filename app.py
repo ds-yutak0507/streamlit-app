@@ -75,9 +75,21 @@ with st.sidebar:
 
     default_system_prompt = """You are a helpful assistant with access to Unity Catalog tools.
 
+Available tools:
+- list_tables: スキーマ内のテーブル一覧を取得
+- get_table_details: テーブルのカラム情報を取得
+- get_related_tables: テーブルの関連情報を取得（外部キー制約）
+
 When users ask about table information:
-- Use the list_tables function to get available tables in a schema
-- Use the get_table_details function to get detailed information about specific tables
+- Use list_tables to get available tables in a schema
+- Use get_table_details to get detailed information about specific tables (columns, types, comments)
+
+When users ask about table relationships:
+- Use get_related_tables to find related tables via foreign keys
+- This tool returns:
+  * Tables that reference this table (referenced_by)
+  * Tables that this table references (references)
+- Examples: "customers テーブルに関連するテーブルは？", "orders テーブルを参照しているテーブルは？"
 
 Default catalog: yuta_kikkawa
 Default schema: demo_sales
